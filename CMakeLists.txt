@@ -29,7 +29,7 @@ include_directories(${PETSC_INC})
 # add_executable(newtons_method SNES_ex1.cpp)
 # add_executable(arclength_method SNES_ex16.cpp)
 add_executable(test test.cpp)
-add_executable(heat SNES_heat.cpp)
+add_executable(heat KSP_heat.cpp)
 
 # Link PETSc to the project
 # 链接PETSc库
