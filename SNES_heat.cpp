@@ -291,7 +291,7 @@ static char help[] = "Solves a nonlinear system with SNES.\n\n";
 
 #define pp  1                 // interpolation degree
 #define nElem 10              // number of elements
-#define nqp 4                 // quadrature rule  
+#define nqp 2                 // quadrature rule  
 #define n_np nElem*pp+1   // number of nodal points
 #define n_en pp+1           // number of element nodes
 
@@ -581,7 +581,7 @@ int main(int argc, char **args) {
     /*
     Set function evaluation routine and vector.
     */
-    ierr = SNESSetFunction(snes,r,FormFunction,NULL);CHKERRQ(ierr);
+    ierr = SNESSetFunction(snes,r,FormFunction,&user);CHKERRQ(ierr);
 
     std::cout << "r: \n";
     ierr = VecView(r,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
@@ -589,7 +589,7 @@ int main(int argc, char **args) {
     /*
     Set Jacobian matrix data structure and Jacobian evaluation routine
     */
-    ierr = SNESSetJacobian(snes,J,J,FormJacobian,NULL);CHKERRQ(ierr);
+    ierr = SNESSetJacobian(snes,J,J,FormJacobian,&user);CHKERRQ(ierr);
 
     /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     Customize nonlinear solver; set runtime options
@@ -602,7 +602,7 @@ int main(int argc, char **args) {
     ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
     ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
     ierr = PCSetType(pc,PCNONE);CHKERRQ(ierr);
-    ierr = KSPSetTolerances(ksp,1.e-4,PETSC_DEFAULT,PETSC_DEFAULT,20);CHKERRQ(ierr);
+    ierr = KSPSetTolerances(ksp,1.e-20,PETSC_DEFAULT,PETSC_DEFAULT,20);CHKERRQ(ierr);
 
     /*
     Set SNES/KSP/KSP/PC runtime options, e.g.,
@@ -668,8 +668,9 @@ int main(int argc, char **args) {
  */
 PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
 {
+    AppCtx  *user = (AppCtx *)ctx;
     PetscErrorCode    ierr;
-    const PetscScalar *uh;
+    const PetscScalar *xx;
     PetscScalar       *F;
 
     /*
@@ -679,8 +680,26 @@ PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
         - You MUST call VecRestoreArray() when you no longer need access to
             the array.
     */
-    ierr = VecGetArrayRead(x,&uh);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(x,&xx);CHKERRQ(ierr);
     ierr = VecGetArray(f,&F);CHKERRQ(ierr);
+
+    std::cout << "xx: \n";
+    for (int ii = 0; ii < n_eq; ++ii){
+        std::cout << xx[ii] << "\t";
+    }
+    std::cout << std::endl;
+
+    std::vector<double> uh(n_np, 0.0);
+    for(int ii = 0; ii < n_np - 1; ++ii){
+        uh[ii] = xx[ii];
+    }
+    uh[n_np - 1] = g(user->omega_r);
+
+    std::cout << "uh: \n";
+    for (int ii = 0; ii < n_np; ++ii){
+        std::cout << uh[ii] << "\t";
+    }
+    std::cout << std::endl;
 
     /* Compute function */
     
@@ -696,6 +715,11 @@ PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
             x_ele[aa] = x_coor[IEN[ee + aa * nElem] - 1];
             u_ele[aa] = uh[IEN[ee + aa * nElem] - 1];
         }
+        std::cout << "u_ele: \n";
+        for (int ii = 0; ii < n_en; ++ii){
+            std::cout << u_ele[ii] << "\t";
+        }
+        std::cout << std::endl;
 
         // loop over quadrature points
         for (int ll = 0; ll < nqp; ++ll) {
@@ -765,12 +789,12 @@ PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
         
     } //  end of element loop
 
-    for (int ii = 0; ii < n_eq; ++ii){
-        F[ii] = -F[ii];
-    }
+    // for (int ii = 0; ii < n_eq; ++ii){
+    //     F[ii] = -F[ii];
+    // }
 
     /* Restore vectors */
-    ierr = VecRestoreArrayRead(x,&uh);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(x,&xx);CHKERRQ(ierr);
     ierr = VecRestoreArray(f,&F);CHKERRQ(ierr);
 
 
@@ -794,10 +818,11 @@ PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
 .  B - optionally different preconditioning matrix
 .  flag - flag indicating matrix structure
 */
-PetscErrorCode FormJacobian(SNES snes,Vec x,Mat jac,Mat B,void *dummy)
+PetscErrorCode FormJacobian(SNES snes,Vec x,Mat jac,Mat B,void *ctx)
 {
-    const PetscScalar *uh;
-    // PetscScalar       K[n_eq * n_eq];
+    AppCtx  *user = (AppCtx *)ctx;
+    const PetscScalar *xx;
+    // PetscScalar       K[100];
     std::vector<double> K(n_eq * n_eq, 0.0);
     PetscErrorCode    ierr;
     //   PetscInt          idx[2] = {0,1};
@@ -805,7 +830,25 @@ PetscErrorCode FormJacobian(SNES snes,Vec x,Mat jac,Mat B,void *dummy)
     /*
         Get pointer to vector data
     */
-    ierr = VecGetArrayRead(x,&uh);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(x,&xx);CHKERRQ(ierr);
+
+    std::cout << "xx: \n";
+    for (int ii = 0; ii < n_eq; ++ii){
+        std::cout << xx[ii] << "\t";
+    }
+    std::cout << std::endl;
+
+    std::vector<double> uh(n_np, 0.0);
+    for(int ii = 0; ii < n_np - 1; ++ii){
+        uh[ii] = xx[ii];
+    }
+    uh[n_np - 1] = g(user->omega_r);
+
+    std::cout << "uh: \n";
+    for (int ii = 0; ii < n_np; ++ii){
+        std::cout << uh[ii] << "\t";
+    }
+    std::cout << std::endl;
 
     /*
         Compute Jacobian entries and insert into matrix.
@@ -879,10 +922,23 @@ PetscErrorCode FormJacobian(SNES snes,Vec x,Mat jac,Mat B,void *dummy)
                 }
             }
         }
+        std::cout << "K: \n";
+        std::cout << K[1] <<std::endl;
+        std::cout << K[99] <<std::endl;
+        for (int ii = 0; ii < n_eq * n_eq; ++ii){
+            std::cout << K[ii] << "\t";
+        }
+        std::cout << std::endl;
         
     } //  end of element loop
 
-    //   ierr  = MatSetValues(B,2,idx,2,idx,A,INSERT_VALUES);CHKERRQ(ierr);
+    std::cout << "K: \n";
+    std::cout << K[1] <<std::endl;
+    std::cout << K[99] <<std::endl;
+    for (int ii = 0; ii < n_eq * n_eq; ++ii){
+        std::cout << K[ii] << "\t";
+    }
+    std::cout << std::endl;
     
     for (PetscInt ii = 0; ii < n_eq; ++ii){
         for (PetscInt jj = 0; jj < n_eq; ++jj){
@@ -893,14 +949,14 @@ PetscErrorCode FormJacobian(SNES snes,Vec x,Mat jac,Mat B,void *dummy)
     /*
         Restore vector
     */
-    ierr = VecRestoreArrayRead(x,&uh);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(x,&xx);CHKERRQ(ierr);
 
     /*
         Assemble matrix
     */
     ierr = MatAssemblyBegin(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-    ierr = MatView(B,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    // ierr = MatView(B,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
     if (jac != B) {
         ierr = MatAssemblyBegin(jac,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
         ierr = MatAssemblyEnd(jac,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
