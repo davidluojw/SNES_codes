@@ -289,23 +289,6 @@ double g(double x){
 static char help[] = "Solves a nonlinear system with SNES.\n\n";
 
 
-#define pp  1                 // interpolation degree
-#define nElem 10              // number of elements
-#define nqp 2                 // quadrature rule  
-#define n_np nElem*pp+1   // number of nodal points
-#define n_en pp+1           // number of element nodes
-
-// Setup the stiffness matrix and load vector 
-// number of equations equals the number of nodes minus the number of Dirichlet nodes
-#define n_eq n_np-1
-
-std::vector<double> qp(nqp, 0.0);
-std::vector<double> wq(nqp, 0.0);
-
-std::vector<int> IEN(nElem * n_en, 0.0);
-std::vector<double> x_coor(n_np, 0.0);
-std::vector<int> ID(n_np, 0.0);
-
 extern PetscErrorCode FormJacobian(SNES,Vec,Mat,Mat,void*);
 extern PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
 
@@ -313,11 +296,42 @@ typedef struct {
     // domain
     double omega_l;
     double omega_r;
+    std::vector<double> qp;
+    std::vector<double> wq;
+    std::vector<double> uh;
+    std::vector<double> x_coor;
+
+    std::vector<int> IEN;
+    std::vector<int> ID; 
+
+    int pp;                 
+    int nElem;              
+    int nqp;                 
+    int n_np;   
+    int n_en;         
+    int n_eq; 
+
 } AppCtx;
 
 int main(int argc, char **args) {
 
+    int pp = 1;                 // interpolation degree
+    int nElem = 10;              // number of elements
+    int nqp = 2;                 // quadrature rule  
+    int n_np = nElem * pp + 1;   // number of nodal points
+    int n_en = pp + 1;           // number of element nodes
+
+    // Setup the stiffness matrix and load vector 
+    // number of equations equals the number of nodes minus the number of Dirichlet nodes
+    int n_eq = n_np - 1; 
     AppCtx    user; /* user-defined work context */
+
+    user.pp = pp;
+    user.nElem = nElem;
+    user.nqp = nqp;
+    user.n_np = n_np;
+    user.n_en = n_en;
+    user.n_eq = n_eq;
 
     user.omega_l = 0.0;
     user.omega_r = 1.0;
@@ -339,36 +353,41 @@ int main(int argc, char **args) {
     std::cout << "n_en " << n_en << std::endl;
     std::cout << "n_eq " << n_eq << std::endl;
 
-    // std::vector<double> qp(nqp, 0.0);
-    // std::vector<double> wq(nqp, 0.0);
+    std::vector<double> qp(nqp, 0.0);
+    std::vector<double> wq(nqp, 0.0);
+    user.qp = qp;
+    user.wq = wq;
     
-    Gauss(nqp, -1.0, 1.0, qp, wq);
+    Gauss(nqp, -1.0, 1.0, user.qp, user.wq);
 
     std::cout << "qp: \n";
     for (int ii = 0; ii < nqp; ++ii){
-        std::cout << qp[ii] << "\t";
+        std::cout << user.qp[ii] << "\t";
     }
     std::cout << std::endl;
 
     std::cout << "wq: \n";
     for (int ii = 0; ii < nqp; ++ii){
-        std::cout << wq[ii] << "\t";
+        std::cout << user.wq[ii] << "\t";
     }
     std::cout << std::endl;
 
-    // std::vector<int> IEN(nElem * n_en, 0.0);
-    // std::vector<double> x_coor(n_np, 0.0);
-    // std::vector<int> ID(n_np, 0.0);
+    std::vector<int> IEN(nElem * n_en, 0.0);
+    std::vector<double> x_coor(n_np, 0.0);
+    std::vector<int> ID(n_np, 0.0);
+    user.IEN = IEN;
+    user.x_coor = x_coor;
+    user.ID = ID;
 
     for (int ee = 0; ee < nElem; ++ee){
         for (int aa = 0; aa < n_en; ++aa){
-            IEN[ee + aa * nElem] = ee * pp + aa + 1;
+            user.IEN[ee + aa * nElem] = ee * pp + aa + 1;
         }
     }
 
     std::cout << "IEN: \n";
     for (int ii = 0; ii < nElem * n_en; ++ii){
-        std::cout << IEN[ii] << "\t";
+        std::cout << user.IEN[ii] << "\t";
     }
     std::cout << std::endl;
 
@@ -377,32 +396,32 @@ int main(int argc, char **args) {
     hh = hh / pp;
 
     for(int nx = 0; nx < n_np; ++nx){
-        x_coor[nx] = nx * hh;
+        user.x_coor[nx] = nx * hh;
     }
 
     std::cout << "x_coor: \n";
     for (int ii = 0; ii < n_np; ++ii){
-        std::cout << x_coor[ii] << "\t";
+        std::cout << user.x_coor[ii] << "\t";
     }
     std::cout << std::endl;
 
     // setup ID array based on the boundary condition
     int counter = 1;
     for (int ii = 0; ii < n_np - 1; ++ii){
-        ID[ii] = counter;
+        user.ID[ii] = counter;
         counter = counter + 1;
     }
 
     std::cout << "ID: \n";
     for (int ii = 0; ii < n_np; ++ii){
-        std::cout << ID[ii] << "\t";
+        std::cout << user.ID[ii] << "\t";
     }
     std::cout << std::endl;
 
-
     // initial guess
-    // std::vector<double> uh(n_np, 0.0);
-    // uh[n_np-1] = g(user.omega_r);
+    std::vector<double> uh(n_np, 0.0);
+    uh[n_np-1] = g(user.omega_r);
+    user.uh = uh;
 
     // std::cout << "uh: \n";
     // for (int ii = 0; ii < n_np; ++ii){
@@ -673,6 +692,22 @@ PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
     const PetscScalar *xx;
     PetscScalar       *F;
 
+    int pp = user->pp;
+    int nElem = user->nElem;
+    int nqp = user->nqp;
+    int n_np = user->n_np;
+    int n_en = user->n_en;
+    int n_eq = user->n_eq;
+
+    int omega_l = user->omega_l;
+    int omega_r = user->omega_r;
+    std::vector<double> ID = user->ID;
+    std::vector<double> IEN = user->IEN;
+    std::vector<double> x_coor = user->x_coor;
+    std::vector<double> qp = user->qp;
+    std::vector<double> wq = user->wq;
+    std::vector<double> uh = user->uh;
+
     /*
     Get pointers to vector data.
         - For default PETSc vectors, VecGetArray() returns a pointer to
@@ -688,12 +723,6 @@ PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
         std::cout << xx[ii] << "\t";
     }
     std::cout << std::endl;
-
-    std::vector<double> uh(n_np, 0.0);
-    for(int ii = 0; ii < n_np - 1; ++ii){
-        uh[ii] = xx[ii];
-    }
-    uh[n_np - 1] = g(user->omega_r);
 
     std::cout << "uh: \n";
     for (int ii = 0; ii < n_np; ++ii){
@@ -821,11 +850,28 @@ PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
 PetscErrorCode FormJacobian(SNES snes,Vec x,Mat jac,Mat B,void *ctx)
 {
     AppCtx  *user = (AppCtx *)ctx;
+    int pp = user->pp;
+    int nElem = user->nElem;
+    int nqp = user->nqp;
+    int n_np = user->n_np;
+    int n_en = user->n_en;
+    int n_eq = user->n_eq;
+
+    int omega_l = user->omega_l;
+    int omega_r = user->omega_r;
+    std::vector<double> ID = user->ID;
+    std::vector<double> IEN = user->IEN;
+    std::vector<double> x_coor = user->x_coor;
+    std::vector<double> qp = user->qp;
+    std::vector<double> wq = user->wq;
+    std::vector<double> uh = user->uh;
+
     const PetscScalar *xx;
     // PetscScalar       K[100];
     std::vector<double> K(n_eq * n_eq, 0.0);
     PetscErrorCode    ierr;
     //   PetscInt          idx[2] = {0,1};
+
 
     /*
         Get pointer to vector data
@@ -842,7 +888,7 @@ PetscErrorCode FormJacobian(SNES snes,Vec x,Mat jac,Mat B,void *ctx)
     for(int ii = 0; ii < n_np - 1; ++ii){
         uh[ii] = xx[ii];
     }
-    uh[n_np - 1] = g(user->omega_r);
+    uh[n_np - 1] = g(omega_r);
 
     std::cout << "uh: \n";
     for (int ii = 0; ii < n_np; ++ii){
