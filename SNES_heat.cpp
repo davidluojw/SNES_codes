@@ -267,7 +267,7 @@ double exact_x(double x){
 
 // nonlinear kappa
 double fun_kappa(double x){
-    return 1.0 + x * x;
+    return 1.0  + x * x;
 }
 
 double fun_dkappa(double x){
@@ -288,7 +288,6 @@ double g(double x){
 
 static char help[] = "Solves a nonlinear system with SNES.\n\n";
 
-
 extern PetscErrorCode FormJacobian(SNES,Vec,Mat,Mat,void*);
 extern PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
 
@@ -296,6 +295,7 @@ typedef struct {
     // domain
     double omega_l;
     double omega_r;
+
     std::vector<double> qp;
     std::vector<double> wq;
     std::vector<double> uh;
@@ -310,9 +310,6 @@ typedef struct {
     int n_np;   
     int n_en;         
     int n_eq; 
-
-    PetscScalar *K;
-    PetscScalar *F;
 
 } AppCtx;
 void AssemblyResidual(const PetscScalar * &xx, AppCtx &user);
@@ -341,16 +338,6 @@ int main(int argc, char **args) {
 
     user.omega_l = 0.0;
     user.omega_r = 1.0;
-
-    // int pp = 1;                 // interpolation degree
-    // int nElem = 10;              // number of elements
-    // int nqp = 6;                 // quadrature rule  
-    // int n_np = nElem*pp+1;   // number of nodal points
-    // int n_en = pp+1;           // number of element nodes
-
-    // // Setup the stiffness matrix and load vector 
-    // // number of equations equals the number of nodes minus the number of Dirichlet nodes
-    // int n_eq = n_np-1;
 
     std::cout << "pp " << pp << std::endl;
     std::cout << "nElem " << nElem << std::endl;
@@ -429,55 +416,6 @@ int main(int argc, char **args) {
     uh[n_np-1] = g(user.omega_r);
     user.uh = uh;
 
-    PetscScalar *K = new PetscScalar[n_eq * n_eq];
-    PetscScalar *F = new PetscScalar[n_eq];
-    user.K = K;
-    user.F = F;
-
-    // user.K[20] = 100;
-
-    std::cout << "user F: \n";
-    for (int ii = 0; ii < n_eq; ++ii){
-        std::cout << F[ii] << "\t";
-    }
-    std::cout << std::endl;
-
-    std::cout << "user K: ";
-    for (int ii = 0; ii < n_eq * n_eq; ++ii){
-        if (ii % n_eq == 0) std::cout << std::endl;
-        std::cout << user.K[ii] << "\t";
-    }
-    std::cout << std::endl;
-
-    // AssemblyResidualJacobian(user);
-
-    // std::cout << "F: \n";
-    // for (int ii = 0; ii < n_eq; ++ii){
-    //     std::cout << F[ii] << "\t";
-    // }
-    // std::cout << std::endl;
-
-    // std::cout << "K: ";
-    // for (int ii = 0; ii < n_eq * n_eq; ++ii){
-    //     if (ii % n_eq == 0) std::cout << std::endl;
-    //     std::cout << K[ii] << "\t";
-    // }
-    // std::cout << std::endl;
-
-    // std::cout << "user F: \n";
-    // for (int ii = 0; ii < n_eq; ++ii){
-    //     std::cout << user.F[ii] << "\t";
-    // }
-    // std::cout << std::endl;
-
-    // std::cout << "user K: ";
-    // for (int ii = 0; ii < n_eq * n_eq; ++ii){
-    //     if (ii % n_eq == 0) std::cout << std::endl;
-    //     std::cout << user.K[ii] << "\t";
-    // }
-    // std::cout << std::endl;
-
-
     SNES           snes;         /* nonlinear solver context */
     KSP            ksp;          /* linear solver context */
     PC             pc;           /* preconditioner context */
@@ -486,7 +424,11 @@ int main(int argc, char **args) {
     PetscErrorCode ierr;
     PetscMPIInt    size;
     PetscScalar    pfive = .5,*xx;
-    PetscBool      flg;
+    PetscReal      rtol = 1.0e-9;  // 相对残差阈值
+    PetscReal      atol = 1.0e-50;  // 绝对残差阈值
+    PetscReal      stol = 1.0e-20;  // 范数残差
+    PetscInt       maxit = 20;  // 最大迭代次数
+    PetscInt       maxf = 10000; // 最大函数评估次数
 
     ierr = PetscInitialize(&argc,&args,(char*)0,help); if (ierr) return ierr;
     ierr = MPI_Comm_size(PETSC_COMM_WORLD,&size);CHKERRQ(ierr);
@@ -496,6 +438,8 @@ int main(int argc, char **args) {
      Create nonlinear solver context
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
     ierr = SNESCreate(PETSC_COMM_WORLD,&snes);CHKERRQ(ierr);
+
+    ierr = SNESSetTolerances(snes, atol, rtol, PETSC_DECIDE, maxit, maxf); CHKERRQ(ierr);
 
     /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create matrix and vector data structures; set corresponding routines
@@ -521,13 +465,13 @@ int main(int argc, char **args) {
     */
     ierr = SNESSetFunction(snes,r,FormFunction,&user);CHKERRQ(ierr);
 
-    std::cout << "r: \n";
-    ierr = VecView(r,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    // std::cout << "r: \n";
+    // ierr = VecView(r,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
 
     /*
     Set Jacobian matrix data structure and Jacobian evaluation routine
     */
-    ierr = SNESSetJacobian(snes,J,J,FormJacobian,&user);CHKERRQ(ierr);
+    // ierr = SNESSetJacobian(snes,J,J,FormJacobian,&user);CHKERRQ(ierr);
 
     /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     Customize nonlinear solver; set runtime options
@@ -537,10 +481,10 @@ int main(int argc, char **args) {
     KSP and PC contexts from the SNES context, we can then
     directly call any KSP and PC routines to set various options.
     */
-    ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
-    ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
-    ierr = PCSetType(pc,PCNONE);CHKERRQ(ierr);
-    ierr = KSPSetTolerances(ksp,1.e-4,PETSC_DEFAULT,PETSC_DEFAULT,20);CHKERRQ(ierr);
+    // ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
+    // ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
+    // ierr = PCSetType(pc,PCNONE);CHKERRQ(ierr);
+    // ierr = KSPSetTolerances(ksp,1.e-4,PETSC_DEFAULT,PETSC_DEFAULT,20);CHKERRQ(ierr);
 
     /*
     Set SNES/KSP/KSP/PC runtime options, e.g.,
@@ -549,6 +493,7 @@ int main(int argc, char **args) {
     SNESSetFromOptions() is called _after_ any other customization
     routines.
     */
+    
     ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
 
     /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -562,19 +507,20 @@ int main(int argc, char **args) {
     to employ an initial guess of zero, the user should explicitly set
     this vector to zero by calling VecSet().
     */
-    std::cout << "x: \n";
-    ierr = VecView(x,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    // std::cout << "x: \n";
+    // ierr = VecView(x,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
     ierr = SNESSolve(snes,NULL,x);CHKERRQ(ierr);
 
     Vec f;
+    
+    ierr = SNESGetFunction(snes,&f,0,0);CHKERRQ(ierr);
     std::cout << "x: \n";
     ierr = VecView(x,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-    ierr = SNESGetFunction(snes,&f,0,0);CHKERRQ(ierr);
     std::cout << "f: \n";
     ierr = VecView(f,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-    std::cout << "r: \n";
-    ierr = VecView(r,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-    std::cout << "J: \n";
+    // std::cout << "r: \n";
+    // ierr = VecView(r,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    // std::cout << "J: \n";
     // ierr = MatView(J,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
 
 
@@ -619,6 +565,8 @@ PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
     ierr = VecGetArrayRead(x,&xx);CHKERRQ(ierr);
     ierr = VecGetArray(f,&F);CHKERRQ(ierr);
 
+    VecZeroEntries(f);
+
     // AssemblyResidual(xx, *user);
 
     // Assembly stiffness matrix and load vector
@@ -636,6 +584,7 @@ PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
         std::vector<double> u_ele(user->n_en);
         for (int aa = 0; aa < user->n_en; ++aa) {
             x_ele[aa] = user->x_coor[user->IEN[ee + aa * user->nElem] - 1];
+            // if (user->ID[user->IEN[ee + aa * user->nElem] - 1] == user->n_eq) u_ele[aa] = user->uh[user->n_np-1];
             u_ele[aa] = user->uh[user->IEN[ee + aa * user->nElem] - 1];
         }
 
@@ -692,11 +641,17 @@ PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
         F[ii] = -F[ii];
     }
     
-    std::cout << "F: \n";
-    for (int ii = 0; ii < user->n_eq; ++ii){
-        std::cout << F[ii] << "\t";
-    }
-    std::cout << std::endl;
+    // std::cout << "F: \n";
+    // for (int ii = 0; ii < user->n_eq; ++ii){
+    //     std::cout << F[ii] << "\n";
+    // }
+    // std::cout << std::endl;
+
+    // std::cout << "xx: \n";
+    // for (int ii = 0; ii < user->n_eq; ++ii){
+    //     std::cout << xx[ii] << "\n";
+    // }
+    // std::cout << std::endl;
 
 
     /* Restore vectors */
@@ -738,6 +693,8 @@ PetscErrorCode FormJacobian(SNES snes,Vec x,Mat jac,Mat B,void *ctx)
     */
     ierr = VecGetArrayRead(x,&xx);CHKERRQ(ierr);
 
+    MatZeroEntries(B);
+
     std::vector<double> K(user->n_eq * user->n_eq, 0.0);
 
     /*
@@ -761,6 +718,7 @@ PetscErrorCode FormJacobian(SNES snes,Vec x,Mat jac,Mat B,void *ctx)
         std::vector<double> u_ele(user->n_en);
         for (int aa = 0; aa < user->n_en; ++aa) {
             x_ele[aa] = user->x_coor[user->IEN[ee + aa * user->nElem] - 1];
+            // if (user->ID[user->IEN[ee + aa * user->nElem] - 1] == user->n_eq) u_ele[aa] = user->uh[user->n_np-1];
             u_ele[aa] = user->uh[user->IEN[ee + aa * user->nElem] - 1];
         }
 
@@ -820,12 +778,12 @@ PetscErrorCode FormJacobian(SNES snes,Vec x,Mat jac,Mat B,void *ctx)
         
     } //  end of element loop
 
-    std::cout << "K: ";
-    for (int ii = 0; ii < user->n_eq * user->n_eq; ++ii){
-        if (ii % user->n_eq == 0) std::cout << std::endl;
-        std::cout << K[ii] << "\t";
-    }
-    std::cout << std::endl;
+    // std::cout << "K: ";
+    // for (int ii = 0; ii < user->n_eq * user->n_eq; ++ii){
+    //     if (ii % user->n_eq == 0) std::cout << std::endl;
+    //     std::cout << K[ii] << "\t";
+    // }
+    // std::cout << std::endl;
 
     for (PetscInt ii = 0; ii < user->n_eq; ++ii){
         for (PetscInt jj = 0; jj < user->n_eq; ++jj){
@@ -844,7 +802,7 @@ PetscErrorCode FormJacobian(SNES snes,Vec x,Mat jac,Mat B,void *ctx)
     */
     ierr = MatAssemblyBegin(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-    ierr = MatView(B,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    // ierr = MatView(B,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
     if (jac != B) {
         ierr = MatAssemblyBegin(jac,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
         ierr = MatAssemblyEnd(jac,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
@@ -855,6 +813,7 @@ PetscErrorCode FormJacobian(SNES snes,Vec x,Mat jac,Mat B,void *ctx)
 
 void AssemblyResidual(const PetscScalar * &xx, AppCtx &user){
 
+    std::vector<double> F(user.n_eq, 0.0);
     // Assembly stiffness matrix and load vector
     for(int ii = 0; ii < user.n_eq; ++ii){
         user.uh[ii] += xx[ii];
@@ -905,15 +864,6 @@ void AssemblyResidual(const PetscScalar * &xx, AppCtx &user){
 
                 f_ele[aa] += user.wq[ll] * Na * f_body(x_qua) * detJ;
                 f_ele[aa] -= user.wq[ll] * Na_xi * kappa * du_dxi * dxi_dx;
-
-                // for (int bb = 0; bb < user.n_en; ++bb){
-                //     double Nb = 0.0;
-                //     PolyBasis(user.pp, bb + 1, 0, user.qp[ll], Nb);
-                //     double Nb_xi = 0.0;
-                //     PolyBasis(user.pp, bb + 1, 1, user.qp[ll], Nb_xi);
-                //     k_ele[aa * user.n_en + bb] += user.wq[ll] * Na_xi * kappa * Nb_xi * dxi_dx;
-                //     k_ele[aa * user.n_en + bb] += user.wq[ll] * Na_xi * dkappa * Nb * du_dxi * dxi_dx;
-                // }
             }
         }
         // global assembly
@@ -921,37 +871,17 @@ void AssemblyResidual(const PetscScalar * &xx, AppCtx &user){
         for (int aa = 0; aa < user.n_en; ++aa){
             int PP = user.ID[ user.IEN[aa * user.nElem + ee] - 1 ];
             if (PP > 0){
-                user.F[PP - 1] += f_ele[aa];
-                // for (int bb = 0; bb < user.n_en; ++bb){
-                //     int QQ = user.ID[ user.IEN[bb * user.nElem + ee] - 1 ];
-                //     if (QQ > 0){
-                //         user.K[(PP - 1) * user.n_eq + QQ - 1] += k_ele[aa * user.n_en + bb];
-                //     }
-                // }
+                F[PP - 1] += f_ele[aa];
             }
         }
         // Modify the load vector by the Natural BC
         // Note: for multi-dimensional cases, one needs to perform line or
         // surface integration for the natural BC.
         if (ee == 0){
-            user.F[ user.ID[ user.IEN[0] - 1 ] - 1 ] += h( user.x_coor[ user.IEN[0] - 1 ]);
+            F[ user.ID[ user.IEN[0] - 1 ] - 1 ] += h( user.x_coor[ user.IEN[0] - 1 ]);
         }
         
     } //  end of element loop
-
-    // std::cout << "F: \n";
-    for (int ii = 0; ii < user.n_eq; ++ii){
-        // std::cout << user.F[ii] << "\t";
-        user.F[ii] = -user.F[ii];
-    }
-    // std::cout << std::endl;
-
-    // std::cout << "K: ";
-    // for (int ii = 0; ii < user.n_eq * user.n_eq; ++ii){
-    //     if (ii % user.n_eq == 0) std::cout << std::endl;
-    //     std::cout << user.K[ii] << "\t";
-    // }
-    // std::cout << std::endl;
 
     return ;
 
@@ -960,6 +890,7 @@ void AssemblyResidual(const PetscScalar * &xx, AppCtx &user){
 
 void AssemblyJacobian(const PetscScalar * &xx, AppCtx &user){
 
+    std::vector<double> K(user.n_eq * user.n_eq, 0.0);
     // Assembly stiffness matrix and load vector
     for(int ii = 0; ii < user.n_eq; ++ii){
         user.uh[ii] += xx[ii];
@@ -968,7 +899,6 @@ void AssemblyJacobian(const PetscScalar * &xx, AppCtx &user){
     for (int ee = 0; ee < user.nElem; ++ee) {
         // Allocate zero element stiffness matrix 
         std::vector<double> k_ele(user.n_en * user.n_en, 0.0);
-        // std::vector<double> f_ele(user.n_en, 0.0);
 
         std::vector<double> x_ele(user.n_en);
         std::vector<double> d_ele(user.n_en);
@@ -1008,9 +938,6 @@ void AssemblyJacobian(const PetscScalar * &xx, AppCtx &user){
                 double Na_xi = 0.0;
                 PolyBasis(user.pp, aa + 1, 1, user.qp[ll], Na_xi);
 
-                // f_ele[aa] += user.wq[ll] * Na * f_body(x_qua) * detJ;
-                // f_ele[aa] -= user.wq[ll] * Na_xi * kappa * du_dxi * dxi_dx;
-
                 for (int bb = 0; bb < user.n_en; ++bb){
                     double Nb = 0.0;
                     PolyBasis(user.pp, bb + 1, 0, user.qp[ll], Nb);
@@ -1026,36 +953,17 @@ void AssemblyJacobian(const PetscScalar * &xx, AppCtx &user){
         for (int aa = 0; aa < user.n_en; ++aa){
             int PP = user.ID[ user.IEN[aa * user.nElem + ee] - 1 ];
             if (PP > 0){
-                // user.F[PP - 1] += f_ele[aa];
                 for (int bb = 0; bb < user.n_en; ++bb){
                     int QQ = user.ID[ user.IEN[bb * user.nElem + ee] - 1 ];
                     if (QQ > 0){
-                        user.K[(PP - 1) * user.n_eq + QQ - 1] += k_ele[aa * user.n_en + bb];
+                        K[(PP - 1) * user.n_eq + QQ - 1] += k_ele[aa * user.n_en + bb];
                     }
                 }
             }
         }
-        // Modify the load vector by the Natural BC
-        // Note: for multi-dimensional cases, one needs to perform line or
-        // surface integration for the natural BC.
-        // if (ee == 0){
-        //     user.F[ user.ID[ user.IEN[0] - 1 ] - 1 ] += h( user.x_coor[ user.IEN[0] - 1 ]);
-        // }
         
     } //  end of element loop
 
-    // std::cout << "F: \n";
-    // for (int ii = 0; ii < user.n_eq; ++ii){
-    //     std::cout << user.F[ii] << "\t";
-    // }
-    // std::cout << std::endl;
-
-    // std::cout << "K: ";
-    // for (int ii = 0; ii < user.n_eq * user.n_eq; ++ii){
-    //     if (ii % user.n_eq == 0) std::cout << std::endl;
-    //     std::cout << user.K[ii] << "\t";
-    // }
-    // std::cout << std::endl;
 
     return ;
 
