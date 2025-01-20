@@ -219,17 +219,12 @@ int main(int argc, char **args) {
     // ierr = VecView(x,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
     SNESSolve(snes,NULL,x);
 
-    Vec f;
-    
-    SNESGetFunction(snes,&f,0,0);
-    std::cout << "x: \n";
-    VecView(x,PETSC_VIEWER_STDOUT_WORLD);
-    std::cout << "f: \n";
-    VecView(f,PETSC_VIEWER_STDOUT_WORLD);
-    // std::cout << "r: \n";
-    // ierr = VecView(r,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-    // std::cout << "J: \n";
-    // ierr = MatView(J,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    // Print solution uh
+    std::cout << "uh \n"; 
+    for(int ii = 0; ii < user.n_np; ++ii){
+        std::cout << std::setprecision(15) << user.uh[ii] << "\n";
+    }
+    std::cout << std::endl;
 
 
     /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

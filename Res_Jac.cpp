@@ -89,12 +89,13 @@ PetscErrorCode FormFunction(SNES snes, Vec x, Vec f, void* ctx)
         F[ii] = -F[ii];
     }
 
+    
     /* Restore vectors */
     VecRestoreArrayRead(x,&xx);
     VecRestoreArray(f,&F);
 
 
-    // ierr = VecView(f,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    // VecView(f,PETSC_VIEWER_STDOUT_WORLD);
 
     return 0;
 
@@ -208,7 +209,6 @@ PetscErrorCode FormJacobian(SNES snes, Vec x, Mat jac, Mat B, void* ctx)
     }
     std::cout << std::endl;
         
-
     /*
         Restore vector
     */
@@ -219,7 +219,7 @@ PetscErrorCode FormJacobian(SNES snes, Vec x, Mat jac, Mat B, void* ctx)
     */
     MatAssemblyBegin(B,MAT_FINAL_ASSEMBLY);
     MatAssemblyEnd(B,MAT_FINAL_ASSEMBLY);
-    // ierr = MatView(B,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    // MatView(B,PETSC_VIEWER_STDOUT_WORLD);
     if (jac != B) {
         MatAssemblyBegin(jac,MAT_FINAL_ASSEMBLY);
         MatAssemblyEnd(jac,MAT_FINAL_ASSEMBLY);
