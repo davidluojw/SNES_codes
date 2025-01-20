@@ -22,6 +22,10 @@ set(CMAKE_MACOSX_RPATH 1)
 find_package(PETSc REQUIRED)
 
 include_directories(${PETSC_INC})
+include_directories(./include)
+
+add_library(Res_Jac Res_Jac.cpp)
+target_link_libraries(Res_Jac ${PETSC_LIB})
 # set(EXTRA_LINK_LIBS ${EXTRA_LINK_LIBS} ${PETSC_LIB})
 # message(STATUS "External Libraries: " ${EXTRA_LINK_LIBS})
 # Add an executable for the project
@@ -32,13 +36,17 @@ add_executable(test test.cpp)
 add_executable(heat_KSP KSP_heat.cpp)
 add_executable(heat_SNES SNES_heat.cpp)
 
+
 # Link PETSc to the project
 # 链接PETSc库
 target_link_libraries(newtons_method ${PETSC_LIB})
 # target_link_libraries(arclength_method ${PETSC_LIB})
 target_link_libraries(test ${PETSC_LIB})
 target_link_libraries(heat_KSP ${PETSC_LIB})
-target_link_libraries(heat_SNES ${PETSC_LIB})
+target_link_libraries(heat_SNES Res_Jac)
+
+# Link Libraries
+
 
 # Compiler flags and options
 # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${PETSC_C_FLAGS}")
