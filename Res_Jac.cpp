@@ -94,6 +94,13 @@ PetscErrorCode FormFunction(SNES snes, Vec x, Vec f, void* ctx)
     VecRestoreArrayRead(x,&xx);
     VecRestoreArray(f,&F);
 
+    // Print solution uh
+    std::cout << "uh \n"; 
+    for(int ii = 0; ii < user->n_np; ++ii){
+        std::cout << std::setprecision(15) << user->uh[ii] << "\n";
+    }
+    std::cout << std::endl;
+
 
     // VecView(f,PETSC_VIEWER_STDOUT_WORLD);
 
@@ -203,11 +210,11 @@ PetscErrorCode FormJacobian(SNES snes, Vec x, Mat jac, Mat B, void* ctx)
     }
 
     // Print solution uh
-    std::cout << "uh \n"; 
-    for(int ii = 0; ii < user->n_np; ++ii){
-        std::cout << std::setprecision(15) << user->uh[ii] << "\n";
-    }
-    std::cout << std::endl;
+    // std::cout << "uh \n"; 
+    // for(int ii = 0; ii < user->n_np; ++ii){
+    //     std::cout << std::setprecision(15) << user->uh[ii] << "\n";
+    // }
+    // std::cout << std::endl;
         
     /*
         Restore vector
@@ -219,7 +226,7 @@ PetscErrorCode FormJacobian(SNES snes, Vec x, Mat jac, Mat B, void* ctx)
     */
     MatAssemblyBegin(B,MAT_FINAL_ASSEMBLY);
     MatAssemblyEnd(B,MAT_FINAL_ASSEMBLY);
-    // MatView(B,PETSC_VIEWER_STDOUT_WORLD);
+    MatView(B,PETSC_VIEWER_STDOUT_WORLD);
     if (jac != B) {
         MatAssemblyBegin(jac,MAT_FINAL_ASSEMBLY);
         MatAssemblyEnd(jac,MAT_FINAL_ASSEMBLY);

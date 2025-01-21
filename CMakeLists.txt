@@ -34,7 +34,9 @@ add_executable(newtons_method SNES_ex1.cpp)
 # add_executable(arclength_method SNES_ex16.cpp)
 add_executable(test test.cpp)
 add_executable(heat_KSP KSP_heat.cpp)
-add_executable(heat_SNES SNES_heat.cpp)
+add_executable(heat_SNES_NR SNES_heat_NR.cpp)
+add_executable(heat_SNES_MD_NR SNES_heat_MD_NR.cpp)
+add_executable(heat_SNES_MD_NR_LS SNES_heat_MD_NR_LS.cpp)
 
 
 # Link PETSc to the project
@@ -43,7 +45,9 @@ target_link_libraries(newtons_method ${PETSC_LIB})
 # target_link_libraries(arclength_method ${PETSC_LIB})
 target_link_libraries(test ${PETSC_LIB})
 target_link_libraries(heat_KSP ${PETSC_LIB})
-target_link_libraries(heat_SNES Res_Jac)
+target_link_libraries(heat_SNES_NR Res_Jac)
+target_link_libraries(heat_SNES_MD_NR Res_Jac)
+target_link_libraries(heat_SNES_MD_NR_LS Res_Jac)
 
 # Link Libraries
 
