@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cmath>
 #include <vector>
+#include "HermiteShape.hpp"
 
 
 constexpr double EPS = 1e-14;
@@ -174,6 +175,14 @@ int main(){
     for (int ii = 0; ii < N1; ++ii){
         for (int jj = 0; jj < N2; ++jj) std::cout << w_2d[ii * N2 + jj] << "\n";
     } 
+
+    double HerResult; 
+    int a_Her = 1; 
+    double xi_Her = x[0];
+    int der = 1;
+    double h = 1;
+    HermiteShape(a_Her, xi_Her, der, h, HerResult);
+    std::cout << "HerResult: "<< HerResult << std::endl;
 
 
 }

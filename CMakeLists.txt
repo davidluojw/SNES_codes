@@ -37,7 +37,8 @@ add_executable(heat_KSP KSP_heat.cpp)
 add_executable(heat_SNES_NR SNES_heat_NR.cpp)
 add_executable(heat_SNES_MD_NR SNES_heat_MD_NR.cpp)
 add_executable(heat_SNES_MD_NR_LS SNES_heat_MD_NR_LS.cpp)
-
+add_executable(heat_SNES_MD_NR_BFGS SNES_heat_MD_NR_BFGS.cpp)
+add_executable(LeeF_SNES SNES_LeeFrame.cpp)
 
 # Link PETSc to the project
 # 链接PETSc库
@@ -48,6 +49,8 @@ target_link_libraries(heat_KSP ${PETSC_LIB})
 target_link_libraries(heat_SNES_NR Res_Jac)
 target_link_libraries(heat_SNES_MD_NR Res_Jac)
 target_link_libraries(heat_SNES_MD_NR_LS Res_Jac)
+target_link_libraries(heat_SNES_MD_NR_BFGS Res_Jac)
+target_link_libraries(LeeF_SNES Res_Jac)
 
 # Link Libraries
 
