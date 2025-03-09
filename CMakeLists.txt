@@ -23,9 +23,12 @@ find_package(PETSc REQUIRED)
 
 include_directories(${PETSC_INC})
 include_directories(./include)
+include_directories(./include/Eigen)
 
 add_library(Res_Jac Res_Jac.cpp)
+add_library(Res_Jac_2nd Res_Jac_2nd.cpp)
 target_link_libraries(Res_Jac ${PETSC_LIB})
+target_link_libraries(Res_Jac_2nd ${PETSC_LIB})
 # set(EXTRA_LINK_LIBS ${EXTRA_LINK_LIBS} ${PETSC_LIB})
 # message(STATUS "External Libraries: " ${EXTRA_LINK_LIBS})
 # Add an executable for the project
@@ -50,7 +53,7 @@ target_link_libraries(heat_SNES_NR Res_Jac)
 target_link_libraries(heat_SNES_MD_NR Res_Jac)
 target_link_libraries(heat_SNES_MD_NR_LS Res_Jac)
 target_link_libraries(heat_SNES_MD_NR_BFGS Res_Jac)
-target_link_libraries(LeeF_SNES Res_Jac)
+target_link_libraries(LeeF_SNES Res_Jac_2nd)
 
 # Link Libraries
 
