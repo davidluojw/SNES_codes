@@ -72,6 +72,7 @@ class UserPointersLeeFrame
         double lambda_n;
         double deltalambda;
         double Deltalambda;
+        double Deltalambda_n;
         Results results;
         Eigen::VectorXd Force_ext;
         Vec F_ext;

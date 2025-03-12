@@ -13,6 +13,7 @@ inline void AssemblyK_SecondOrder(Mat &Kout, void* ctx){
     // Allocate an empty stiffness matrix
 
     Eigen::MatrixXd K(user->n_eq, user->n_eq);
+    K.setZero();
 
     // Assembly the stiffness matrix and load vector
     for (int ee = 0; ee < user->n_el; ee++) {
@@ -43,9 +44,11 @@ inline void AssemblyK_SecondOrder(Mat &Kout, void* ctx){
         dl << 0, 0, r1, D_L, 0, r2;
 
         // Current iterate internal forces
-        double P = user->Elems[ee].eleFint(4);
-        double M1 = user->Elems[ee].eleFint(3);
-        double M2 = user->Elems[ee].eleFint(6);
+        double P = user->Elems[ee].eleFint(3);
+        double M1 = user->Elems[ee].eleFint(2);
+        double M2 = user->Elems[ee].eleFint(5);
+
+        std::cout << "P: " << P << "\t M1: " << M1 << "\t M2: " << M2 << std::endl;
 
         // Local coordinate, displacement & angle increment with respect to the
         Eigen::VectorXd x_ele(2);
@@ -114,6 +117,8 @@ inline void AssemblyK_SecondOrder(Mat &Kout, void* ctx){
         user->Elems[ee].eleTangentK = kt_ele;
 
         // Transform the stiffness matrix in terms of the global coordinates
+        angle = elemAngle(user->Elems[ee], user->disp);
+        T = RotationMatrix(angle);
         kt_ele = T * kt_ele * T.transpose();
 
         // Now we need to put element k and f into global K and F

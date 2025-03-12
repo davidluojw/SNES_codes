@@ -39,7 +39,7 @@ static char help[] = "Solves a nonlinear system with SNES.\n\n";
 
 int main(int argc, char **args) {
 
-    const double EPS = 1e-14;
+    const double EPS = 2.220446049250313e-16;
 
     //  model data
     double L = 120;
@@ -48,7 +48,7 @@ int main(int argc, char **args) {
     double A = 6;
     double nu = 0.3;
 
-    double F_applied = -48000;
+    double F_applied = -40000;
     double M = 0;
     double Q = 0;
     double g1 = 0;
@@ -159,6 +159,7 @@ int main(int argc, char **args) {
 
     double deltalambda = 0.0;
     double Deltalambda = 0.0;
+    double Deltalambda_n = 0.0;
 
     // 初始化 Results 结构体
     Results results;
@@ -317,6 +318,7 @@ int main(int argc, char **args) {
     user.lambda_n = lambda_n;
     user.deltalambda = deltalambda;
     user.Deltalambda = Deltalambda;
+    user.Deltalambda_n = Deltalambda_n;
     user.Force_ext = Force_ext;
     user.Nodes = Nodes;
     user.Elems = Elems;
@@ -512,7 +514,7 @@ int main(int argc, char **args) {
     MatZeroEntries(J);
     for (PetscInt i = 0; i < n_eq; i++) {
         PetscInt col = i;
-        PetscScalar value = 1.0; // 至少设置对角线元素
+        PetscScalar value = 0.0; // 至少设置对角线元素
         MatSetValue(J, i, col, value, INSERT_VALUES);
     }
     MatAssemblyBegin(J, MAT_FINAL_ASSEMBLY);
@@ -526,7 +528,7 @@ int main(int argc, char **args) {
     MatZeroEntries(K0);
     for (PetscInt i = 0; i < n_eq; i++) {
         PetscInt col = i;
-        PetscScalar value = 1.0; // 至少设置对角线元素
+        PetscScalar value = 0.0; // 至少设置对角线元素
         MatSetValue(K0, i, col, value, INSERT_VALUES);
     }
     MatAssemblyBegin(K0, MAT_FINAL_ASSEMBLY);
@@ -598,17 +600,20 @@ int main(int argc, char **args) {
     // start the process
     int n = 0;
     Eigen::VectorXd deltadisp(n_np * n_ed);
+    deltadisp.setZero();
     user.deltadisp = deltadisp;
+    PetscScalar n2 = 0.0;
+    int s = 0;
     while (n < max_steps){
         // Initialization of all loading step
         n += 1;
 
         VecCopy(user.d, user.d_n);
         user.lambda_n = user.lambda;
-        disp_n = disp;
+        user.disp_n = user.disp;
 
         for (int ee = 0; ee < n_el; ++ee){
-            user.Elems_n[ee].eleLength = elemLength(user.Elems[ee], disp);
+            user.Elems_n[ee].eleLength = elemLength(user.Elems[ee], user.disp);
             user.Elems_n[ee].eleAngle  = user.Elems[ee].eleAngle;
             user.Elems_n[ee].eleFint  = user.Elems[ee].eleFint;
             user.Elems_n[ee].eleTangentK  = user.Elems[ee].eleTangentK;
@@ -629,17 +634,19 @@ int main(int argc, char **args) {
 
         VecView(user.q_bar, viewer);
         
-        int s = 0;
-        PetscScalar n2 = 0.0;
         if (n == 1){
             s = 1;
             user.Deltalambda = Deltalambda_init;
-            VecDot(q_bar, q_bar, &n2);
+            VecDot(user.q_bar, user.q_bar, &n2);
+            PetscPrintf(PETSC_COMM_WORLD, "n2: %f\n", n2);
         }
         else{
             PetscScalar m2;
-            VecDot(q_bar_n, q_bar, &m2);
-            PetscScalar GSP = n2 / m2;
+            VecDot(user.q_bar_n, user.q_bar, &m2);
+            PetscPrintf(PETSC_COMM_WORLD, "m2: %f\n", m2);
+            PetscScalar GSP;
+            GSP = n2 / m2;
+            PetscPrintf(PETSC_COMM_WORLD, "GSP: %.15f\n", GSP);
             if (GSP < 0){
                 s = -s;
             }
@@ -649,12 +656,13 @@ int main(int argc, char **args) {
             VecDot(user.deltad, user.deltad, &d2_temp);
             VecDot(user.q_bar, user.q_bar, &n2_temp);
             user.Deltalambda = s * sqrt(d2_temp/ n2_temp);
-
-            // 荷载比例限制
-            if ((max_ratio > 0 && (user.lambda + user.Deltalambda) > max_ratio) || (max_ratio < 0 && (user.lambda + user.Deltalambda) < max_ratio)) {
-                user.Deltalambda = max_ratio - user.lambda;
-            }
             
+            
+        }
+
+        // 荷载比例限制
+        if ((max_ratio > 0 && (user.lambda + user.Deltalambda) > max_ratio) || (max_ratio < 0 && (user.lambda + user.Deltalambda) < max_ratio)) {
+            user.Deltalambda = max_ratio - user.lambda;
         }
 
 
@@ -680,7 +688,7 @@ int main(int argc, char **args) {
         
 
         VecAXPY(user.d, 1.0, user.Deltad);    // 位移更新, d = d + Deltad
-        user.lambda += user.Deltalambda;       // 荷载因子更新
+        user.lambda = user.lambda + user.Deltalambda;       // 荷载因子更新
 
         std::cout << "user.d: \n"; 
         for (PetscInt i = 0; i < user.n_eq; ++i) {
@@ -697,6 +705,7 @@ int main(int argc, char **args) {
             PetscPrintf(PETSC_COMM_WORLD, "%f ", PetscRealPart(value));
         }
         PetscPrintf(PETSC_COMM_WORLD, "\n");
+        PetscPrintf(PETSC_COMM_WORLD, "user.lambda: %f\n", user.lambda);
 
 
         // 处理边界条件（例如disp的拼接）
@@ -718,8 +727,8 @@ int main(int argc, char **args) {
 
         // 计算增量
         // user.deltad = user.d - user.d_n;
-        VecCopy(user.d, user.deltad);         // Copy user.d to user.deltad
-        VecAXPY(user.deltad, -1.0, user.d_n);  // Subtract user.d_n from user.deltad,  deltad = -1.0 d_n + deltad
+        // VecCopy(user.d, user.deltad);   s      // Copy user.d to user.deltad
+        VecWAXPY(user.deltad, -1.0, user.d_n, user.d);  // Subtract user.d_n from user.deltad,  deltad = -1.0 d_n + deltad
 
         user.deltalambda = user.lambda - user.lambda_n;
         user.deltadisp = user.disp - user.disp_n;
@@ -728,8 +737,8 @@ int main(int argc, char **args) {
 
         // Stored the current load step initial increment for the next load step
         VecCopy(user.Deltad, user.Deltad_n);
-        double Deltalambda_n = Deltalambda;
-        VecCopy(q_bar, q_bar_n);       // will be used for the next GSP calculation
+        user.Deltalambda_n = user.Deltalambda;
+        VecCopy(user.q_bar, user.q_bar_n);       // will be used for the next GSP calculation
 
         std::cout << "user.d: \n"; 
         for (PetscInt i = 0; i < user.n_eq; ++i) {
@@ -744,14 +753,31 @@ int main(int argc, char **args) {
 
         int iter_step = 0;
         PetscInt conv = 0;
-        double tol = 1e-6;
+        double tol = 1e-5;
 
-        while (!conv && iter_step < max_iter) {
+        while (  iter_step < max_iter) {
             AssemblyN_SecondOrder(user.N, &user);
+            std::cout << "user.N: \n"; 
+            for (PetscInt i = 0; i < user.n_eq; ++i) {
+                PetscScalar value;
+                VecGetValues(user.N, 1, &i, &value);
+                PetscPrintf(PETSC_COMM_WORLD, "%f ", PetscRealPart(value));
+            }
+            PetscPrintf(PETSC_COMM_WORLD, "\n");
+
             VecWAXPY(user.R, -user.lambda, user.F_ext, user.N); // R = -lambda * F_ext + N
             VecScale(user.R, -1.0);              // R = -R =  lambda * F - N
+            std::cout << "user.R: \n"; 
+            for (PetscInt i = 0; i < user.n_eq; ++i) {
+                PetscScalar value;
+                VecGetValues(user.R, 1, &i, &value);
+                PetscPrintf(PETSC_COMM_WORLD, "%f ", PetscRealPart(value));
+            }
+            PetscPrintf(PETSC_COMM_WORLD, "\n");
+
             PetscReal R_norm;
             VecNorm(user.R, NORM_2, &R_norm);
+            PetscPrintf(PETSC_COMM_WORLD, "R_norm: %f\n", R_norm);
 
             // Store iteration results
             user.results.d_iter.push_back(user.d);
@@ -765,11 +791,28 @@ int main(int argc, char **args) {
             iter_step += 1;
             AssemblyK_SecondOrder(K0, &user);
 
+            MatView(K0, viewer); 
+
             KSPSetOperators(ksp, K0, K0);
             KSPSolve(ksp, user.F_ext, user.q_bar);
+            std::cout << "user.q_bar: \n"; 
+            for (PetscInt i = 0; i < user.n_eq; ++i) {
+                PetscScalar value;
+                VecGetValues(user.q_bar, 1, &i, &value);
+                PetscPrintf(PETSC_COMM_WORLD, "%f ", PetscRealPart(value));
+            }
+            PetscPrintf(PETSC_COMM_WORLD, "\n");
+            
 
             KSPSetOperators(ksp, K0, K0);
             KSPSolve(ksp, user.R, user.Deltad_bar);
+            std::cout << "user.Deltad_bar: \n"; 
+            for (PetscInt i = 0; i < user.n_eq; ++i) {
+                PetscScalar value;
+                VecGetValues(user.Deltad_bar, 1, &i, &value);
+                PetscPrintf(PETSC_COMM_WORLD, "%f ", PetscRealPart(value));
+            }
+            PetscPrintf(PETSC_COMM_WORLD, "\n");
             
 
             // Constant arc-length cylindrical
@@ -778,35 +821,58 @@ int main(int argc, char **args) {
             VecDuplicate(d,&tempVec);
             // a
             VecDot(user.q_bar, user.q_bar, &a);
-            VecWAXPY(tempVec, 1.0, user.Deltad_bar, user.deltad); // tempVec = Deltad_bar + deltad
+            PetscPrintf(PETSC_COMM_WORLD, "a: %f\n", a);
             // b
+            VecWAXPY(tempVec, 1.0, user.Deltad_bar, user.deltad); // tempVec = Deltad_bar + deltad
             VecDot(user.q_bar, tempVec, &b);
-            VecWAXPY(tempVec, 2.0, user.deltad, user.Deltad_bar); // tempVec = Deltad_bar + 2 * deltad
+            PetscPrintf(PETSC_COMM_WORLD, "b: %f\n", b);
             // c
+            VecWAXPY(tempVec, 2.0, user.deltad, user.Deltad_bar); // tempVec = Deltad_bar + 2 * deltad
             VecDot(user.Deltad_bar, tempVec, &c);
+            PetscPrintf(PETSC_COMM_WORLD, "c: %f\n", c);
             // s_iter
-            VecDot(user.deltad, user.q_bar, &tempScalar);
+            VecDot(user.deltad, user.q_bar, &tempScalar);   
             PetscScalar s_iter;
             if (tempScalar >= 0) s_iter = 1.0;
             else s_iter = -1.0;
+            PetscPrintf(PETSC_COMM_WORLD, "s_iter: %f\n", s_iter);
 
             // 计算 Deltalambda
             PetscScalar sqrt_term;
             sqrt_term = (b / a) * (b / a) - c / a;
             if (sqrt_term < 0) {
-                std::cerr << "Error: sqrt_term is negative! Setting Deltalambda to 0.\n";
+                std::cout << "Error: sqrt_term is negative! \n";
                 conv = -1;
-                break;
+                user.Deltalambda = user.Deltalambda_n;
+                // continue;
+                // break;
             } else {
                 user.Deltalambda = -b / a + s_iter * sqrt(sqrt_term);
             }
+            PetscPrintf(PETSC_COMM_WORLD, "user.Deltalambda: %f\n", user.Deltalambda);
 
             // Deltad^(i) computation
             VecWAXPY(user.Deltad, user.Deltalambda, user.q_bar, user.Deltad_bar);
+            std::cout << "user.Deltad: \n"; 
+            for (PetscInt i = 0; i < user.n_eq; ++i) {
+                PetscScalar value;
+                VecGetValues(user.Deltad, 1, &i, &value);
+                PetscPrintf(PETSC_COMM_WORLD, "%f ", PetscRealPart(value));
+            }
+            PetscPrintf(PETSC_COMM_WORLD, "\n");
 
             // Update total values
             VecAXPY(user.d, 1.0, user.Deltad);    // 位移更新, d = d + Deltad
-            user.lambda += user.Deltalambda;       // 荷载因子更新
+            user.lambda = user.lambda + user.Deltalambda;       // 荷载因子更新
+
+            std::cout << "user.d: \n"; 
+            for (PetscInt i = 0; i < user.n_eq; ++i) {
+                PetscScalar value;
+                VecGetValues(user.d, 1, &i, &value);
+                PetscPrintf(PETSC_COMM_WORLD, "%f ", PetscRealPart(value));
+            }
+            PetscPrintf(PETSC_COMM_WORLD, "\n");
+            PetscPrintf(PETSC_COMM_WORLD, "user.lambda: %f\n", user.lambda);
 
             // 处理边界条件（例如disp的拼接）
             const PetscScalar *d_array;
@@ -822,15 +888,26 @@ int main(int argc, char **args) {
                         0.0,                     // g_BC[2] 对应 MATLAB 的 g_BC(3)
                         0.0,                     // g_BC[3] 对应 MATLAB 的 g_BC(4)
                         d_eigen.tail(1);          // d(end)
-            
+            std::cout << "user.disp: " << user.disp.transpose() << std::endl;
 
             // 计算增量
             // user.deltad = user.d - user.d_n;
-            VecCopy(user.d, user.deltad);         // Copy user.d to user.deltad
-            VecAXPY(user.deltad, -1.0, user.d_n);  // Subtract user.d_n from user.deltad,  deltad = -1.0 d_n + deltad
+            // VecCopy(user.d, user.deltad);         // Copy user.d to user.deltad
+            VecWAXPY(user.deltad, -1.0, user.d_n, user.d);  // Subtract user.d_n from user.deltad,  deltad = -1.0 d_n + deltad
+            std::cout << "user.deltad: \n"; 
+            for (PetscInt i = 0; i < user.n_eq; ++i) {
+                PetscScalar value;
+                VecGetValues(user.deltad, 1, &i, &value);
+                PetscPrintf(PETSC_COMM_WORLD, "%f ", PetscRealPart(value));
+            }
+            PetscPrintf(PETSC_COMM_WORLD, "\n");
 
             user.deltalambda = user.lambda - user.lambda_n;
             user.deltadisp = user.disp - user.disp_n;
+            PetscPrintf(PETSC_COMM_WORLD, "user.deltalambda: %f\n", user.deltalambda);
+            std::cout << "user.deltadisp: " << user.deltadisp.transpose() << std::endl;
+
+            std::cout << "iter_step: " << iter_step << std::endl;
 
             VecDestroy(&tempVec);
         }

@@ -57,8 +57,8 @@ inline double elemLength( const Element &elem, const Eigen::VectorXd &disp){
     double dy1 = disp_eva[elem.Node1.dof(1)];  // y方向位移
 
     // 获取节点2的位移
-    double dx2 = disp_eva[elem.Node1.dof(0)];
-    double dy2 = disp_eva[elem.Node1.dof(1)];
+    double dx2 = disp_eva[elem.Node2.dof(0)];
+    double dy2 = disp_eva[elem.Node2.dof(1)];
 
     // 计算新坐标
     double x1_new = elem.Node1.x + dx1;
@@ -118,7 +118,9 @@ inline double elemRigidRot(const Element &elem, const Eigen::VectorXd &disp, con
     double ang_incr = atan2(dir.norm(), vx_0.dot(vx_1));
 
     // Direction of the rotation
-    double s = (dir(2) >= 0.0) ? 1.0 : -1.0;
+    double s;
+    if (dir(2) >= 0.0)  s = 1.0;
+    else s = -1.0;
     ang_incr = s * ang_incr;
 
     return ang_incr;
@@ -132,11 +134,11 @@ inline Eigen::MatrixXd RotationMatrix(const double &angle){
     // Construct the rotation matrix
     Eigen::MatrixXd T(6, 6);
     T << cos_theta, -sin_theta, 0, 0, 0, 0,
-         sin_theta, cos_theta, 0, 0, 0, 0,
-         0, 0, 1, 0, 0, 0,
-         0, 0, 0, cos_theta, -sin_theta, 0,
-         0, 0, 0, sin_theta, cos_theta, 0,
-         0, 0, 0, 0, 0, 1;
+         sin_theta, cos_theta,  0, 0, 0, 0,
+         0,         0,          1, 0, 0, 0,
+         0,         0,          0, cos_theta, -sin_theta, 0,
+         0,         0,          0, sin_theta, cos_theta, 0,
+         0,         0,          0, 0, 0, 1;
 
     return T;
 }

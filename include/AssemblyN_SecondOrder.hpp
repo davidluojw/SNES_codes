@@ -15,6 +15,8 @@ inline void AssemblyN_SecondOrder(Vec &Nout, void* ctx){
     PetscScalar       *N;
     VecGetArray(Nout,&N);
 
+    VecZeroEntries(Nout);
+
     // Eigen::VectorXd N(user->n_eq);
 
     // 遍历所有单元
@@ -48,16 +50,22 @@ inline void AssemblyN_SecondOrder(Vec &Nout, void* ctx){
         dl << 0.0, 0.0, r1, D_L, 0.0, r2;
         
         // 计算内力增量
-        Eigen::VectorXd D_fl = user->Elems_n[ee].eleElasticK * dl;
+        Eigen::VectorXd D_fl(6);
+        D_fl.setZero();
+        D_fl = user->Elems_n[ee].eleElasticK * dl;
         
         // 更新总内力
-        Eigen::VectorXd fl = user->Elems_n[ee].eleFint + D_fl;
+        Eigen::VectorXd fl(6);
+        fl.setZero();
+        fl = user->Elems_n[ee].eleFint + D_fl;
 
         // Update internal force
         user->Elems[ee].eleFint = fl;
         
         // 转换到全局坐标系
-        Eigen::VectorXd n_e = T * user->Elems[ee].eleFint;
+        Eigen::VectorXd n_e(6);
+        n_e.setZero();
+        n_e = T * fl;
         
         // 组装到全局载荷向量
         for (int aa = 0; aa < user->n_en; ++aa) {
@@ -72,12 +80,12 @@ inline void AssemblyN_SecondOrder(Vec &Nout, void* ctx){
         }
     }
 
-    PetscScalar *F_ext_arr;
-    VecGetArray(user->F_ext, &F_ext_arr);
+    // PetscScalar *F_ext_arr;
+    // VecGetArray(user->F_ext, &F_ext_arr);
 
-    for (int ii = 0; ii < user->n_eq; ++ii){
-        N[ii] = N[ii] - user->lambda * F_ext_arr[ii];
-    }
+    // for (int ii = 0; ii < user->n_eq; ++ii){
+    //     N[ii] = N[ii] - user->lambda * F_ext_arr[ii];
+    // }
 
     VecRestoreArray(Nout,&N);
 
